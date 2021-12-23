@@ -117,6 +117,9 @@ func (ic *Credential) CreateDisclosureProof(
 	if err != nil {
 		return nil, err
 	}
+	// context is used in Idemix but not in IRMA
+	// IRMA uses a dedicated metadata attribute to contain the credential type
+	// in IRMA we always set the context value to 1
 	challenge, err := ProofBuilderList{builder}.Challenge(context, nonce1, false)
 	if err != nil {
 		return nil, err
@@ -136,19 +139,23 @@ func (ic *Credential) CreateDisclosureProofBuilder(
 	d.z = big.NewInt(1)
 	d.pk = ic.Pk
 	var err error
+	// in a nutshell, the core is just this line
 	d.randomizedSignature, err = ic.Signature.Randomize(ic.Pk)
 	if err != nil {
 		return nil, err
 	}
+	// ZK for hiding e - first step: commitment for e
 	d.eCommit, err = common.RandomBigInt(ic.Pk.Params.LeCommit)
 	if err != nil {
 		return nil, err
 	}
+	// ZK for hiding v - first step: commitment for v
 	d.vCommit, err = common.RandomBigInt(ic.Pk.Params.LvCommit)
 	if err != nil {
 		return nil, err
 	}
 
+	// ZK for all hidden attributes - first step: random commitments for hidden attributes
 	d.attrRandomizers = make(map[int]*big.Int)
 	d.disclosedAttributes = disclosedAttributes
 	d.undisclosedAttributes = getUndisclosedAttributes(disclosedAttributes, len(ic.Attributes))
@@ -160,6 +167,7 @@ func (ic *Credential) CreateDisclosureProofBuilder(
 		}
 	}
 
+	// ----- RANGE PROOF
 	if rangeStatements != nil {
 		d.rpStructures = make(map[int][]*rangeproof.ProofStructure)
 		for index, statements := range rangeStatements {
@@ -176,6 +184,7 @@ func (ic *Credential) CreateDisclosureProofBuilder(
 		}
 	}
 
+	// ----- REVOCATION
 	if !nonrev {
 		return d, nil
 	}
@@ -344,33 +353,47 @@ func (d *DisclosureProofBuilder) Commit(randomizers map[string]*big.Int) ([]*big
 
 // CreateProof creates a (disclosure) proof with the provided challenge.
 func (d *DisclosureProofBuilder) CreateProof(challenge *big.Int) Proof {
+	// e in Idemix has a minimum value
+	// e' = e - eMin
+	// prover only proves knowledge of e', so less data (as in length needs to be transmitted)
+	// the verifier uses the proof of knowledge of e' and combines it with eMin
 	ePrime := new(big.Int).Sub(d.randomizedSignature.E, new(big.Int).Lsh(big.NewInt(1), d.pk.Params.Le-1))
+	// note: the commitments for the following ZK proofs were already calculated in the CreateDisclosureProofBuilder method
+	// this is normal Schnorr -> eResponse = eCommit + challenge*ePrime
 	eResponse := new(big.Int).Mul(challenge, ePrime)
 	eResponse.Add(d.eCommit, eResponse)
+	// this is normal Schnorr -> vResponse = vCommit + challenge*vPrime
 	vResponse := new(big.Int).Mul(challenge, d.randomizedSignature.V)
 	vResponse.Add(d.vCommit, vResponse)
 
 	aResponses := make(map[int]*big.Int)
 	for _, v := range d.undisclosedAttributes {
+		// exp is the value of a specific hidden attribute
 		exp := d.attributes[v]
 		if exp.BitLen() > int(d.pk.Params.Lm) {
 			exp = common.IntHashSha256(exp.Bytes())
 		}
+		// this is normal Schnorr -> t = d.attrRandomizers[v] + challenge*exp
 		t := new(big.Int).Mul(challenge, exp)
+		// d.attrRandomizers[v] is the specific random commitment that was calculated for this hidden credential
+		// in the CreateDisclosureProofBuilder method
 		aResponses[v] = t.Add(d.attrRandomizers[v], t)
 	}
 
+	// the real disclosed values
 	aDisclosed := make(map[int]*big.Int)
 	for _, v := range d.disclosedAttributes {
 		aDisclosed[v] = d.attributes[v]
 	}
 
+	// ----- REVOCATION
 	var nonrevProof *revocation.Proof
 	if d.nonrevBuilder != nil {
 		nonrevProof = d.nonrevBuilder.CreateProof(challenge)
 		delete(nonrevProof.Responses, "alpha") // reset from NonRevocationResponse during verification
 	}
 
+	// ----- RANGE PROOF
 	var rangeProofs map[int][]*rangeproof.Proof
 	if d.rpStructures != nil {
 		rangeProofs = make(map[int][]*rangeproof.Proof)

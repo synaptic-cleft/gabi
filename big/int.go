@@ -16,6 +16,9 @@ import (
 
 // Int is an API-compatible "math/big".Int that JSON-marshals to and from Base64.
 // Only supports positive integers.
+// the gabi type Int is purely made for encoding. all other functions can be re-used from the original Go impl of big.Int
+// default go encoding would be base10, gabi uses bas64
+// eventually, we re-convert the Go int to our own Int type
 type Int big.Int
 
 func (i *Int) MarshalXML(e *xml.Encoder, start xml.StartElement) error {

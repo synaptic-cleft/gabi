@@ -124,13 +124,17 @@ func (builders ProofBuilderList) Challenge(context, nonce *big.Int, issig bool) 
 	// So we should take it, and hence also its commitment, to fit within the smallest size -
 	// otherwise it will be too big so that we cannot perform the range proof showing
 	// that it is not too big.
+	// ZK for hiding sk - first step: commitment for sk
+	// 1 skCommitment for all builders to prove that all proofs belong to the same person
 	skCommitment, err := common.RandomBigInt(gabikeys.DefaultSystemParameters[1024].LmCommit)
 	if err != nil {
 		return nil, err
 	}
 
+	// for each builder there will be two contributions (A', z), hence the capacity is len(builders)*2
 	commitmentValues := make([]*big.Int, 0, len(builders)*2)
 	for _, pb := range builders {
+		// pb.Commit will add the ZK commitment for sk to d.attrRandomizers[0]
 		contributions, err := pb.Commit(map[string]*big.Int{"secretkey": skCommitment})
 		if err != nil {
 			return nil, err

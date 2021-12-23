@@ -14,6 +14,7 @@ import (
 // with that hash.
 func HashCommit(values []*big.Int, issig bool) *big.Int {
 	// The first element is the number of elements
+	// tmp converts gabi's int type to go's int type
 	var tmp []interface{}
 	offset := 0
 	if issig {
@@ -23,11 +24,13 @@ func HashCommit(values []*big.Int, issig bool) *big.Int {
 	} else {
 		tmp = make([]interface{}, len(values)+1)
 	}
+	// the first item marks how many items will follow. collection of proofs only verifies these proofs.
 	tmp[offset] = gobig.NewInt(int64(len(values)))
 	offset++
 	for i, v := range values {
 		tmp[i+offset] = v.Go()
 	}
+	// Q: why asn1 marshal? a byte array is needed but what's the reason to choose asn1 marshalling? no specific reason
 	r, err := asn1.Marshal(tmp)
 	if err != nil {
 		panic(err) // Marshal should never error, so panic if it does

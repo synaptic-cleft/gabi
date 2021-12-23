@@ -116,14 +116,21 @@ func (s *CLSignature) Verify(pk *gabikeys.PublicKey, ms []*big.Int) bool {
 }
 
 // Randomize returns a randomized copy of the signature.
+// Selective Disclosure step 1: randomize issuer's signature
 func (s *CLSignature) Randomize(pk *gabikeys.PublicKey) (*CLSignature, error) {
+	// LRA is the bit length ln (secret x element [0,n] and ln being the bit length of n) plus Lstatzk (added for security, 2^80 or 2^128 -> 80 or 128 bits)
 	r, err := common.RandomBigInt(pk.Params.LRA)
 	if err != nil {
 		return nil, err
 	}
+	// new(big.Int).Exp(a,b,c) -> a is the base, b the exponent, c is the modulus
 	APrime := new(big.Int).Mul(s.A, new(big.Int).Exp(pk.S, r, pk.N))
+	// .Mod modifies the int pointer directly
 	APrime.Mod(APrime, pk.N)
 	t := new(big.Int).Mul(s.E, r)
 	VPrime := new(big.Int).Sub(s.V, t)
+	// Q: why a new pointer for e?
+	// (A', e, v') is its own signature set and gets its own e (with its own pointer in memory)
+	// it's not mandatory but good practice
 	return &CLSignature{A: APrime, E: new(big.Int).Set(s.E), V: VPrime}, nil
 }
