@@ -5,28 +5,31 @@ import (
 	"testing"
 
 	"github.com/privacybydesign/gabi/big"
+	"github.com/privacybydesign/gabi/safeprime"
 	"github.com/privacybydesign/gabi/zkproof"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPrimeProofFlow(t *testing.T) {
-	g, gok := zkproof.BuildGroup(big.NewInt(47))
+	g, gok := zkproof.BuildGroup(testP)
 	require.True(t, gok, "Failed to setup group for Prime proof testing")
 
 	Follower.(*TestFollower).count = 0
 
-	s := newPrimeProofStructure("p", 4)
+	s := newPrimeProofStructure("p", uint(testP.BitLen())-2)
 
-	const p = 11
+	p, err := safeprime.Generate(testP.BitLen()-2, nil)
+	require.NoError(t, err)
+
 	pCommits := newPedersenStructure("p")
-	_, pCommit := pCommits.commitmentsFromSecrets(g, nil, big.NewInt(p))
+	_, pCommit := pCommits.commitmentsFromSecrets(g, nil, p)
 	bases := zkproof.NewBaseMerge(&g, &pCommit)
 
 	listSecrets, commit := s.commitmentsFromSecrets(g, []*big.Int{}, &bases, &pCommit)
 
 	require.Equal(t, len(listSecrets), s.numCommitments(), "NumCommitments is off")
-	require.Equal(t, Follower.(*TestFollower).count, s.numRangeProofs(), "Logging is off GenerateCommitmentsFromSecrets")
+	require.Equal(t, int(Follower.(*TestFollower).count), s.numRangeProofs(), "Logging is off GenerateCommitmentsFromSecrets")
 	Follower.(*TestFollower).count = 0
 
 	proof := s.buildProof(g, big.NewInt(12345), commit, &pCommit)
@@ -39,7 +42,7 @@ func TestPrimeProofFlow(t *testing.T) {
 
 	listProof := s.commitmentsFromProof(g, []*big.Int{}, big.NewInt(12345), &basesProof, &pProof, proof)
 
-	assert.Equal(t, Follower.(*TestFollower).count, s.numRangeProofs(), "Logging is off on GenerateCommitmentsFromProof")
+	assert.Equal(t, int(Follower.(*TestFollower).count), s.numRangeProofs(), "Logging is off on GenerateCommitmentsFromProof")
 	assert.Equal(t, listSecrets, listProof, "Commitment lists differ.")
 }
 
