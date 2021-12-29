@@ -308,6 +308,9 @@ func (d *DisclosureProofBuilder) Commit(randomizers map[string]*big.Int) ([]*big
 	if err != nil {
 		return nil, err
 	}
+	// Q: couldn't we do d.z.Mul(Sv, Ae).Mod(d.z, d.pk.N) and not initialize d.z earlier with 1?
+	// handy for combined secret of keyshare server
+	// also for consistency, always multiply old z with new value that needs to be added
 	d.z.Mul(d.z, Ae).Mul(d.z, Sv).Mod(d.z, d.pk.N)
 
 	for _, v := range d.undisclosedAttributes {
