@@ -211,13 +211,16 @@ func (p *ProofD) correctResponseSizes(pk *gabikeys.PublicKey) bool {
 // provided public key.
 func (p *ProofD) reconstructZ(pk *gabikeys.PublicKey) (*big.Int, error) {
 	// known = Z / ( prod_{disclosed} R_i^{a_i} * A^{2^{l_e - 1}} )
+	// begin with setting numerator to exponent 2^pk.Params.Le-1 -> 2^{l_e - 1}
 	numerator := new(big.Int).Lsh(big.NewInt(1), pk.Params.Le-1)
 	numerator.Exp(p.A, numerator, pk.N)
 	for i, attribute := range p.ADisclosed {
 		exp := attribute
+		// if attribute is too big the hash will be used as exponent
 		if exp.BitLen() > int(pk.Params.Lm) {
 			exp = common.IntHashSha256(exp.Bytes())
 		}
+		// last multiplication, so numerator = ( prod_{disclosed} R_i^{a_i} * A^{2^{l_e - 1}} )
 		numerator.Mul(numerator, new(big.Int).Exp(pk.R[i], exp, pk.N))
 	}
 
@@ -226,8 +229,10 @@ func (p *ProofD) reconstructZ(pk *gabikeys.PublicKey) (*big.Int, error) {
 		return nil, common.ErrNoModInverse
 	}
 
+	// now known = Z / ( prod_{disclosed} R_i^{a_i} * A^{2^{l_e - 1}} )
 	known.Mul(pk.Z, known)
 
+	// knownC = A^-c
 	knownC, err := common.ModPow(known, new(big.Int).Neg(p.C), pk.N)
 	if err != nil {
 		return nil, err
@@ -240,6 +245,7 @@ func (p *ProofD) reconstructZ(pk *gabikeys.PublicKey) (*big.Int, error) {
 	if err != nil {
 		return nil, err
 	}
+	// undisclosed attributes
 	Rs := big.NewInt(1)
 	for i, response := range p.AResponses {
 		t, err := common.ModPow(pk.R[i], response, pk.N)
@@ -248,6 +254,8 @@ func (p *ProofD) reconstructZ(pk *gabikeys.PublicKey) (*big.Int, error) {
 		}
 		Rs.Mul(Rs, t)
 	}
+	// Z = known^-c * Ae * Rs * Sv
+	// Z = (Z / ( prod_{disclosed} R_i^{a_i} * A^{2^{l_e - 1}} ))^-c * Ae * Rs * Sv
 	Z := new(big.Int).Mul(knownC, Ae)
 	Z.Mul(Z, Rs).Mul(Z, Sv).Mod(Z, pk.N)
 
@@ -256,6 +264,9 @@ func (p *ProofD) reconstructZ(pk *gabikeys.PublicKey) (*big.Int, error) {
 
 // Verify verifies the proof against the given public key, context, and nonce.
 func (p *ProofD) Verify(pk *gabikeys.PublicKey, context, nonce1 *big.Int, issig bool) bool {
+	// Q: Why not check Z and reconstruction the challenge in two obvious, non-nested steps?
+	// new Z is used to calculate challenge. If Z is not the same, c cannot be the same
+	// The Idemix spec also uses just one step here.
 	contrib, err := p.ChallengeContribution(pk)
 	if err != nil {
 		return false

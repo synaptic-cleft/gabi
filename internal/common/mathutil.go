@@ -57,6 +57,8 @@ var ErrNoModInverse = errors.New("modular inverse does not exist")
 // ModPow computes x^y mod m. The exponent (y) can be negative, in which case it
 // uses the modular inverse to compute the result (in contrast to Go's Exp
 // function).
+// Note: Go's Exp function also uses the modular inverse if y is negative. This ModPow function is still
+// handy since it will return an error and therefore differentiate this case instead of always returning nil
 func ModPow(x, y, m *big.Int) (*big.Int, error) {
 	if y.Sign() == -1 {
 		t := new(big.Int).ModInverse(x, m)

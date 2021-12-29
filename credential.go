@@ -321,6 +321,7 @@ func (d *DisclosureProofBuilder) Commit(randomizers map[string]*big.Int) ([]*big
 
 	list := []*big.Int{d.randomizedSignature.A, d.z}
 
+	// ----- REVOCATION
 	if d.nonrevBuilder != nil {
 		l, err := d.nonrevBuilder.Commit()
 		if err != nil {
@@ -329,6 +330,7 @@ func (d *DisclosureProofBuilder) Commit(randomizers map[string]*big.Int) ([]*big
 		list = append(list, l...)
 	}
 
+	// ----- RANGE PROOF
 	if d.rpStructures != nil {
 		d.rpCommits = make(map[int][]*rangeproof.ProofCommit)
 		// we need guaranteed order on index
