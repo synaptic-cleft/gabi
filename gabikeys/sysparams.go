@@ -24,7 +24,7 @@ type (
 		Lstatzk uint
 	}
 
-	// DerivedParameters holds system parameters that can be drived from base
+	// DerivedParameters holds system parameters that can be derived from base
 	// systemparameters (BaseParameters)
 	DerivedParameters struct {
 		Le            uint
