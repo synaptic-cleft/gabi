@@ -64,3 +64,8 @@ The check if the signature is correct is nested in the challenge check as Z is c
 ## issuance
 > note on issuance: v created as v' from client + v'' from issuer. v needs a minimum value, issuer can make sure that this minimum is reached
 
+## keyproof
+keyproof is used to ensure that the issuer constructed their private and public key correctly. This proof is done in zero knowledge.
+The issuer also needs to prove that all elements (such as Z and other base elements) are quadratic residues. The proof is necessary to 
+make sure the issuer won't break linkability.
+
