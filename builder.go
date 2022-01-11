@@ -81,13 +81,17 @@ func userCommitment(pk *gabikeys.PublicKey, secret *big.Int, vPrime *big.Int, ms
 // NewCredentialBuilder creates a new credential builder.
 // The resulting credential builder is already committed to the provided secret.
 // arg blind: list of indices of random blind attributes (exlcuding the secret key)
+// see algorithm 1 p.24 Brinda Hampiholi
 func NewCredentialBuilder(pk *gabikeys.PublicKey, context, secret *big.Int, nonce2 *big.Int, blind []int) (*CredentialBuilder, error) {
 	vPrime, err := common.RandomBigInt(pk.Params.LvPrime)
 	if err != nil {
 		return nil, err
 	}
+	// mUser is the user/client part of the random-blind attribute m
 	mUser := make(map[int]*big.Int, len(blind))
 	for _, i := range blind {
+		// off by one in mUser[i+1] for secret key
+		// length Lm-1 since 2 parts are later added up
 		mUser[i+1], err = common.RandomBigInt(pk.Params.Lm - 1)
 		if err != nil {
 			return nil, err
@@ -98,14 +102,16 @@ func NewCredentialBuilder(pk *gabikeys.PublicKey, context, secret *big.Int, nonc
 	U := userCommitment(pk, secret, vPrime, mUser)
 
 	return &CredentialBuilder{
-		pk:      pk,
+		pk: pk,
+		// Idemix context, not used in IRMA
 		context: context,
 		secret:  secret,
 		vPrime:  vPrime,
 		u:       U,
 		uCommit: big.NewInt(1),
-		nonce2:  nonce2,
-		mUser:   mUser,
+		// nonce2 is chosen by the client and will later be used when the issuer proves his knowledge of d
+		nonce2: nonce2,
+		mUser:  mUser,
 	}, nil
 }
 
@@ -113,12 +119,15 @@ func NewCredentialBuilder(pk *gabikeys.PublicKey, context, secret *big.Int, nonc
 // nonce1 sent by the issuer. The response consists of a commitment to the
 // secret (set on creation of the builder, see NewBuilder) and a proof of
 // correctness of this commitment.
+// algorithm 2 in issuance
 func (b *CredentialBuilder) CommitToSecretAndProve(nonce1 *big.Int) (*IssueCommitmentMessage, error) {
+	// nonce1 provided by issuer
 	proofU, err := b.proveCommitment(nonce1)
 	if err != nil {
 		return nil, err
 	}
 
+	// builder is used by the client, issuer uses ProofU
 	return &IssueCommitmentMessage{U: b.u, Proofs: ProofList{proofU}, Nonce2: b.nonce2}, nil
 }
 
@@ -192,15 +201,18 @@ func (b *CredentialBuilder) ConstructCredential(msg *IssueSignatureMessage, attr
 
 // Creates a proofU using a provided nonce
 func (b *CredentialBuilder) proveCommitment(nonce1 *big.Int) (Proof, error) {
+	// skCommitment here cause the value is used for creating the challenge
 	sCommit, err := common.RandomBigInt(b.pk.Params.LsCommit)
 	if err != nil {
 		return nil, err
 	}
+	// contrib contains u and ucommit
 	contrib, err := b.Commit(map[string]*big.Int{"secretkey": sCommit})
 	if err != nil {
 		return nil, err
 	}
 	c := createChallenge(b.context, nonce1, contrib, false)
+	// creates v' response and sk response
 	return b.CreateProof(c), nil
 }
 
@@ -275,6 +287,7 @@ func (b *CredentialBuilder) Commit(randomizers map[string]*big.Int) ([]*big.Int,
 }
 
 // CreateProof creates a (ProofU) Proof using the provided challenge.
+// proof of client during issuance that the commitment U is correct
 func (b *CredentialBuilder) CreateProof(challenge *big.Int) Proof {
 	sResponse := new(big.Int).Add(b.skRandomizer, new(big.Int).Mul(challenge, b.secret))
 	vPrimeResponse := new(big.Int).Add(b.vPrimeCommit, new(big.Int).Mul(challenge, b.vPrime))
@@ -285,7 +298,8 @@ func (b *CredentialBuilder) CreateProof(challenge *big.Int) Proof {
 	}
 
 	return &ProofU{
-		U:              b.u,
+		U: b.u,
+		// the following is the result of algorithm 2
 		C:              challenge,
 		VPrimeResponse: vPrimeResponse,
 		SResponse:      sResponse,

@@ -34,11 +34,13 @@ type CLSignature struct {
 // Camenisch-Lysyanskaya signature scheme as used in the IdeMix system.
 func signMessageBlockAndCommitment(sk *gabikeys.PrivateKey, pk *gabikeys.PublicKey, U *big.Int, ms []*big.Int) (
 	*CLSignature, error) {
+	// R is all R^a's added up
 	R, err := RepresentToPublicKey(pk, ms)
 	if err != nil {
 		return nil, err
 	}
 
+	// v''
 	vTilde, err := common.RandomBigInt(pk.Params.Lv - 1)
 	if err != nil {
 		return nil, err

@@ -31,6 +31,7 @@ func NewIssuer(sk *gabikeys.PrivateKey, pk *gabikeys.PublicKey, context *big.Int
 // the IssueCommitmentMessage provided. Note that this function DOES NOT check
 // the proofs containted in the IssueCommitmentMessage! That needs to be done at
 // a higher level!
+// algorithm 4 in issuance, brinda p.25
 func (i *Issuer) IssueSignature(U *big.Int, attributes []*big.Int, witness *revocation.Witness, nonce2 *big.Int, blind []int) (*IssueSignatureMessage, error) {
 	signature, mIssuer, err := i.signCommitmentAndAttributes(U, attributes, blind)
 	if err != nil {
@@ -48,9 +49,13 @@ func (i *Issuer) IssueSignature(U *big.Int, attributes []*big.Int, witness *revo
 // Arg "blind" is a list of indices representing the random blind attributes.
 // The signature does not verify (yet) due to blinding factors present.
 func (i *Issuer) signCommitmentAndAttributes(U *big.Int, attributes []*big.Int, blind []int) (*CLSignature, map[int]*big.Int, error) {
+	// m again the random-blind attribute, mIssuer as the issuers part for the attribute
 	mIssuer := make(map[int]*big.Int)
+	// ms will contain the complete list of all exponents
 	ms := append([]*big.Int{big.NewInt(0)}, attributes...)
 
+	// In IRMA blinding could for example be used for unlinkable voting where the random-blind attribute is used
+	// as identifier, so you can vote once.
 	for _, j := range blind {
 		if attributes[j] != nil {
 			return nil, nil, errors.New("attribute at random blind index should be nil before issuance")
@@ -60,6 +65,7 @@ func (i *Issuer) signCommitmentAndAttributes(U *big.Int, attributes []*big.Int, 
 		if err != nil {
 			return nil, nil, err
 		}
+		// j+1? -> off by one for secret key
 		mIssuer[j+1] = r
 		ms[j+1] = r
 	}

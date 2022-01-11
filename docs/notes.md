@@ -61,7 +61,13 @@ When verifying, we need to check if the signature (A, e, v) is correct, if the c
 The check if the signature is correct is nested in the challenge check as Z is computed with the signature provided in the proof and used as input for the challenge calculation.
 
 
-## issuance
+## Issuance
+4 algorithm steps for issuance:
+1. create commitment U from sk and v' -> `NewCredentialBuilder` in [builder.go](../builder.go)
+2. client generates proof of correctness for user's commitment U -> `(b *CredentialBuilder) CommitToSecretAndProve` in [builder.go](../builder.go)
+3. issuer verifies proof of correctness for U -> `(p *ProofU) Verify` in [proofs.go](../proofs.go)
+4. issuer generates blind CL signature and proof -> `(i *Issuer) IssueSignature` in [issuer.go](../issuer.go)
+
 > note on issuance: v created as v' from client + v'' from issuer. v needs a minimum value, issuer can make sure that this minimum is reached
 
 ## keyproof

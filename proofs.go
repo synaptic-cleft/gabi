@@ -52,11 +52,14 @@ func (p *ProofU) MergeProofP(proofP *ProofP, pk *gabikeys.PublicKey) {
 }
 
 // Verify verifies whether the proof is correct.
+// algorithm 3 of issuance
 func (p *ProofU) Verify(pk *gabikeys.PublicKey, context, nonce *big.Int) bool {
+	// reconstruct U
 	contrib, err := p.ChallengeContribution(pk)
 	if err != nil {
 		return false
 	}
+	// use reconstructed U here to recreateChallenge
 	return p.VerifyWithChallenge(pk, createChallenge(context, nonce, contrib, false))
 }
 
@@ -79,6 +82,7 @@ func (p *ProofU) VerifyWithChallenge(pk *gabikeys.PublicKey, reconstructedChalle
 func (p *ProofU) reconstructUcommit(pk *gabikeys.PublicKey) (*big.Int, error) {
 	// Reconstruct Ucommit
 	// U_commit = U^{-C} * S^{VPrimeResponse} * R_0^{SResponse}
+	// see Brinda p. 24
 	Uc, err := common.ModPow(p.U, new(big.Int).Neg(p.C), pk.N)
 	if err != nil {
 		return nil, err
